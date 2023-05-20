@@ -15,13 +15,15 @@ INPUT_CONTENT_SIZE = INPUT_SIZE - INPUT_MARGIN_SIZE * 2
 
 # region LOADING DATA
 
-def import_data_sample(directory, index=1):
+def load_data_sample(directory, index=1, hsl=False):
     sample = load_img(os.path.join(directory, f'{index}.png'), color_mode='rgba')
     mask = load_img(os.path.join(directory, f'{index}_mask.png'), color_mode='rgba')
 
     sample_array = img_to_array(sample)
     sample_array = sample_array[:, :, :3]
     sample_array = sample_array / 255.
+    if hsl:
+        sample_array = tf.image.rgb_to_hsv(sample_array)
 
     mask_array = img_to_array(mask)
     mask_array = mask_array[:, :, 3:4]
@@ -34,24 +36,24 @@ def get_sample_count(directory):
     return int(len([name for name in os.listdir(directory)]) / 2)
 
 
-def load_data_samples(directory):
+def load_data_samples(directory, hsl=False):
     samples = []
     masks = []
 
     for i in range(1, get_sample_count(directory) + 1):
-        sample, mask = import_data_sample(directory, i)
+        sample, mask = load_data_sample(directory, i, hsl=hsl)
         samples.append(sample)
         masks.append(mask)
 
     return samples, masks
 
 
-def load_training_data_samples():
-    return load_data_samples(TRAINING_DATA_DIRECTORY)
+def load_training_data_samples(hsl=False):
+    return load_data_samples(TRAINING_DATA_DIRECTORY, hsl=hsl)
 
 
-def load_validation_data_samples():
-    return load_data_samples(VALIDATION_DATA_DIRECTORY)
+def load_validation_data_samples(hsl=False):
+    return load_data_samples(VALIDATION_DATA_DIRECTORY, hsl=hsl)
 
 
 # endregion
@@ -428,7 +430,7 @@ def save_model(unet_model: Model, tag=None):
         unet_model.save(f'model_{tag}')
 
 
-def load_model(tag = None):
+def load_model(tag=None):
     if tag is None:
         return tf.keras.models.load_model('model')
     else:

@@ -170,7 +170,7 @@ print(len(np.unique(box_top_left_corners[0])), len(np.unique(box_top_left_corner
 
 importlib.reload(unet)
 
-sample, mask = unet.import_data_sample(unet.VALIDATION_DATA_DIRECTORY, 1)
+sample, mask = unet.load_data_sample(unet.VALIDATION_DATA_DIRECTORY, 1)
 
 unet.show_full_image_prediction(unet_model, sample, mask)
 
@@ -180,7 +180,7 @@ unet.show_full_image_prediction(unet_model, sample, mask)
 
 importlib.reload(unet)
 
-sample, mask = unet.import_data_sample(unet.VALIDATION_DATA_DIRECTORY, 1)
+sample, mask = unet.load_data_sample(unet.VALIDATION_DATA_DIRECTORY, 1)
 
 columns, rows = unet.calculate_number_of_columns_and_rows(sample)
 
