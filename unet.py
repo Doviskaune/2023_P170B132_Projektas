@@ -1,5 +1,5 @@
 from keras.utils import load_img, array_to_img, img_to_array
-from keras import layers, Model, optimizers
+from keras import layers, Model, optimizers, metrics
 import tensorflow as tf
 import os
 import numpy as np
@@ -38,7 +38,7 @@ def load_data_samples(directory):
     samples = []
     masks = []
 
-    for i in range(1, get_sample_count(directory)):
+    for i in range(1, get_sample_count(directory) + 1):
         sample, mask = import_data_sample(directory, i)
         samples.append(sample)
         masks.append(mask)
@@ -261,7 +261,7 @@ def upsample_block(x, conv_features, n_filters):
     return x
 
 
-def prepare_unet_model():
+def prepare_unet_model(weight=1):
     # inputs
     inputs = layers.Input(shape=(INPUT_SIZE, INPUT_SIZE, 3))
 
@@ -296,9 +296,12 @@ def prepare_unet_model():
 
     unet_model.compile(optimizer=optimizers.Adam(),
                        loss="sparse_categorical_crossentropy",
-                       metrics="accuracy")
+                       loss_weights=(1, weight),
+                       metrics=["accuracy", 
+                                # metrics.MeanIoU(num_classes=2, sparse_y_true=False)
+                               ])
 
-    unet_model.summary()
+    # unet_model.summary()
 
     return unet_model
 
@@ -308,14 +311,14 @@ def prepare_unet_model():
 
 def train(unet_model: Model, samples, masks, validation_samples, validation_masks, epochs=20, batch_size=64):
     model_history = unet_model.fit(
-        np.array([img_to_array(s) for s in samples]).reshape((len(samples), INPUT_SIZE, INPUT_SIZE, 3)),
-        np.array([img_to_array(m) for m in masks]).reshape((len(masks), INPUT_SIZE, INPUT_SIZE, 1)),
+        np.array([s.numpy() for s in samples]).reshape((len(samples), INPUT_SIZE, INPUT_SIZE, 3)),
+        np.array([m.numpy() for m in masks]).reshape((len(masks), INPUT_SIZE, INPUT_SIZE, 1)),
         epochs=epochs,
         batch_size=batch_size,
         # validation_data=(
-        #     np.array([img_to_array(s) for s in validation_samples]).reshape(
+        #     np.array([s.numpy() for s in validation_samples]).reshape(
         #         (len(validation_samples), INPUT_SIZE, INPUT_SIZE, 3)),
-        #     np.array([img_to_array(m) for m in validation_masks]).reshape(
+        #     np.array([m.numpy() for m in validation_masks]).reshape(
         #         (len(validation_masks), INPUT_SIZE, INPUT_SIZE, 1))
         # ),
         # validation_batch_size=batch_size,
@@ -367,6 +370,46 @@ def create_mask(pred_mask):
 def show_prediction(unet_model: Model, sample, mask):
     pred_mask = unet_model.predict(sample.numpy().reshape((1, INPUT_SIZE, INPUT_SIZE, 3)))
     display([sample, mask, create_mask(pred_mask)])
+    
+    
+def calculate_number_of_columns_and_rows(sample):
+    box_top_left_corners = get_bounding_boxes_start_point(sample)
+    columns_count, rows_count = len(np.unique(box_top_left_corners[0])), len(np.unique(box_top_left_corners[1]))
+    
+    return columns_count, rows_count
+    
+
+def show_full_image_prediction(unet_model: Model, sample, mask):    
+    columns, rows = calculate_number_of_columns_and_rows(sample)
+    
+    samples_cropped, masks_cropped = pad_and_crop_image(sample), pad_and_crop_image(mask)
+    
+    masks_predicted = []
+    for sample2 in samples_cropped:
+        pred_mask = unet_model.predict(sample2.numpy().reshape((1, INPUT_SIZE, INPUT_SIZE, 3)), verbose=0)
+        pred_mask = tf.image.crop_to_bounding_box(pred_mask, INPUT_MARGIN_SIZE, INPUT_MARGIN_SIZE, INPUT_CONTENT_SIZE, INPUT_CONTENT_SIZE)
+        masks_predicted.append(pred_mask.numpy())
+    
+    c_list = []
+
+    for i in range(rows):
+        c = np.concatenate(masks_predicted[i * columns:(i + 1) * columns], axis=2)
+        c_list.append(c)
+
+    c = np.concatenate(c_list, axis=1)
+    
+    width, height = get_image_size(sample)
+    width_pad_start, _ = calculate_padding_size(width)
+    height_pad_start, _ = calculate_padding_size(height)
+    
+    c = tf.image.crop_to_bounding_box(c, height_pad_start - INPUT_MARGIN_SIZE, width_pad_start - INPUT_MARGIN_SIZE, height, width)
+    
+    print(c.shape, mask.shape)
+    display([sample, mask, create_mask(c)])
+    
+def show_full_image_predictions(unet_model: Model, samples, masks):
+    for sample, mask in zip(samples, masks):
+        show_full_image_prediction(unet_model, sample, mask)
 
 
 def show_predictions(unet_model: Model, samples, masks):
