@@ -297,9 +297,9 @@ def prepare_unet_model(weight=1):
     unet_model.compile(optimizer=optimizers.Adam(),
                        loss="sparse_categorical_crossentropy",
                        loss_weights=(1, weight),
-                       metrics=["accuracy", 
+                       metrics=["accuracy",
                                 # metrics.MeanIoU(num_classes=2, sparse_y_true=False)
-                               ])
+                                ])
 
     # unet_model.summary()
 
@@ -370,26 +370,27 @@ def create_mask(pred_mask):
 def show_prediction(unet_model: Model, sample, mask):
     pred_mask = unet_model.predict(sample.numpy().reshape((1, INPUT_SIZE, INPUT_SIZE, 3)))
     display([sample, mask, create_mask(pred_mask)])
-    
-    
+
+
 def calculate_number_of_columns_and_rows(sample):
     box_top_left_corners = get_bounding_boxes_start_point(sample)
     columns_count, rows_count = len(np.unique(box_top_left_corners[0])), len(np.unique(box_top_left_corners[1]))
-    
-    return columns_count, rows_count
-    
 
-def show_full_image_prediction(unet_model: Model, sample, mask):    
+    return columns_count, rows_count
+
+
+def show_full_image_prediction(unet_model: Model, sample, mask):
     columns, rows = calculate_number_of_columns_and_rows(sample)
-    
+
     samples_cropped, masks_cropped = pad_and_crop_image(sample), pad_and_crop_image(mask)
-    
+
     masks_predicted = []
     for sample2 in samples_cropped:
         pred_mask = unet_model.predict(sample2.numpy().reshape((1, INPUT_SIZE, INPUT_SIZE, 3)), verbose=0)
-        pred_mask = tf.image.crop_to_bounding_box(pred_mask, INPUT_MARGIN_SIZE, INPUT_MARGIN_SIZE, INPUT_CONTENT_SIZE, INPUT_CONTENT_SIZE)
+        pred_mask = tf.image.crop_to_bounding_box(pred_mask, INPUT_MARGIN_SIZE, INPUT_MARGIN_SIZE, INPUT_CONTENT_SIZE,
+                                                  INPUT_CONTENT_SIZE)
         masks_predicted.append(pred_mask.numpy())
-    
+
     c_list = []
 
     for i in range(rows):
@@ -397,16 +398,18 @@ def show_full_image_prediction(unet_model: Model, sample, mask):
         c_list.append(c)
 
     c = np.concatenate(c_list, axis=1)
-    
+
     width, height = get_image_size(sample)
     width_pad_start, _ = calculate_padding_size(width)
     height_pad_start, _ = calculate_padding_size(height)
-    
-    c = tf.image.crop_to_bounding_box(c, height_pad_start - INPUT_MARGIN_SIZE, width_pad_start - INPUT_MARGIN_SIZE, height, width)
-    
+
+    c = tf.image.crop_to_bounding_box(c, height_pad_start - INPUT_MARGIN_SIZE, width_pad_start - INPUT_MARGIN_SIZE,
+                                      height, width)
+
     print(c.shape, mask.shape)
     display([sample, mask, create_mask(c)])
-    
+
+
 def show_full_image_predictions(unet_model: Model, samples, masks):
     for sample, mask in zip(samples, masks):
         show_full_image_prediction(unet_model, sample, mask)
@@ -418,12 +421,18 @@ def show_predictions(unet_model: Model, samples, masks):
         display([image, mask, create_mask(pred_mask)])
 
 
-def save_model(unet_model: Model):
-    unet_model.save('model')
+def save_model(unet_model: Model, tag=None):
+    if tag is None:
+        unet_model.save('model')
+    else:
+        unet_model.save(f'model_{tag}')
 
 
-def load_model():
-    return tf.keras.models.load_model('model')
+def load_model(tag = None):
+    if tag is None:
+        return tf.keras.models.load_model('model')
+    else:
+        return tf.keras.models.load_model(f'model_{tag}')
 
 
 def main():
